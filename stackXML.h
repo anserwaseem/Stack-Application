@@ -1,34 +1,41 @@
-#include<iostream>
-
+#include <iostream>
+#include<string>
+#include<fstream>
+#define tT template <class T>
 using namespace std;
 
-template<class T>
-class Node 
+tT class Node
 {
 public:
-    Node()
+    Node();
+    Node(const T val);
     T data;
-    Node<T> * next;
+    Node<T> *next;
+    //~Node();
 };
 
-template<class T>
-class Stack 
-{ 
+tT class Stack
+{
 public:
-    Stack(); 
-    ~Stack();
+    Stack();
     bool IsEmpty();
-    bool push(const T & val);
-    bool pop(T & val);
-    T top(); 
-    void print(); 
+    bool push(const T &val);
+    bool pop(T &val);
+    T Top();
+    void print();
+    ~Stack();
+
 private:
-    Node<T> * top;
+    Node<T> *top;
 };
 
 //template<class T>
 class XMLData
 {
-
-
+public:
+    int lineNumber;
+    bool StartOrEnd;//0 -> start  and  1 -> end
+    string tagText;
+    XMLData();
+    void printXML();
 };
