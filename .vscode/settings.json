@@ -1,0 +1,27 @@
+// {
+//     "files.associations": {
+//         "__locale": "cpp",
+//         "locale": "cpp"
+//     }
+// }
+{
+    "C_Cpp.updateChannel": "Insiders",
+    "code-runner.runInTerminal": true,
+    "files.autoSave": "afterDelay",
+    "editor.accessibilitySupport": "off",
+    "workbench.colorTheme": "Ayu Mirage Bordered",
+    // "C_Cpp.default.cppStandard": "c++11",
+    "code-runner.executorMap" : {"cpp" : "cd $dir && g++ -std=c++17 $fileName -o $fileNameWithoutExt && $dir$fileNameWithoutExt"},
+    "editor.fontFamily": "Source Code Pro, Consolas, 'MonoLisa', monospace",
+    // Controls the font size in pixels.
+    "editor.fontSize": 15,
+    "terminal.integrated.fontSize": 15,
+    "window.zoomLevel": 0,
+    "explorer.confirmDelete": false,
+    "git.enableSmartCommit": true,
+    "better-comments.multilineComments": true,
+    "http.proxySupport": "off",
+    "files.associations": {
+        "iostream": "cpp"
+    },
+}
