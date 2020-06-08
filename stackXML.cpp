@@ -87,8 +87,8 @@ XMLData::XMLData()
 
 void XMLData::printXML()
 {
-    cout<<"Tag name"<<tagText<<"\tLine Number"<<lineNumber<<"\t";
-    if(StartOrEnd)
+    cout<<"Tag name = "<<tagText<<",  Line Number = "<<lineNumber<<", ";
+    if(!StartOrEnd)
         cout<<"Starting tag\n";
     else
         cout<<"Ending tag\n";
@@ -98,6 +98,7 @@ void checkXML(string filename)
 {
     Stack<XMLData> St;
     int lineCounter = 1;
+    bool foundError = false;
 
     ifstream fin;
     fin.open(filename);
@@ -108,69 +109,169 @@ void checkXML(string filename)
         string line;
         getline(fin, line, '\n');//reads whole line so that line number can be tracked
 
-        int OpeningAngularBracket = line.find('<');
-        int ClosingAngularBracket = line.find('>');
-
-        //NOTE: XML prolog is optional. If it exists, it must come first in the document.
-        if(line[OpeningAngularBracket+1] == '?')//if true, it's a prolog
+        int CurrentLineLength=line.length();
+        while( CurrentLineLength>0 )
         {
-            xml.lineNumber=lineCounter;
-            xml.StartOrEnd=0;//starting tag is found
+            int OpeningAngularBracketIndex = line.find('<');
+            int ClosingAngularBracketIndex = line.find('>');
 
-            line = line.substr(OpeningAngularBracket+2, line.size());//ignore s[0]='<' and s[1]='?'
-            int FirstSpaceAfterTag = line.find(' ');
+            if(OpeningAngularBracketIndex == -1 && ClosingAngularBracketIndex == -1)
+                CurrentLineLength = 0;
 
-            string Tag = line.substr(0, FirstSpaceAfterTag);
-            xml.tagText=Tag;
+            //NOTE: XML prolog is optional. If it exists, it must come first in the document.
+            if(line[OpeningAngularBracketIndex+1] == '?')//if true, it's a prolog
+            {
+                if(lineCounter==1)
+                {
+                    line = line.substr(OpeningAngularBracketIndex+2, line.size());//ignore s[0]='<' and s[1]='?'
+                    CurrentLineLength=line.length();
 
-            St.push(xml);
-            cout<<"Pushed: "; xml.printXML();
+                    int endOfProlog = line.find("?>");
+                    if(endOfProlog==-1)//if false, it means prolog is complete
+                    {
+                        cout<<"---- ERROR ---- \tThe prolog is not complete.\n";
+                        foundError = true;
+                        break;
+                    }
+                    else//if prolog is complete, then check if there is another tag
+                    {
+                        int secondAngularBracketIndex = line.find('<');
+                        if (secondAngularBracketIndex==-1)//if there is no other tag besides prolog, then clear the current line
+                        {    
+                            CurrentLineLength=0;
+                        }
+                        else//else, delete the contents of line before another tag (i.e., tag after prolog in the current line)
+                        {
+                            line = line.substr(secondAngularBracketIndex, line.size());
+                            CurrentLineLength=line.length();
+                        }
+                        
+                    }
+                }
+                else//if prolog is not in the first line; show error
+                {
+                    cout<<"---- ERROR ---- \tProlog must be at the start of xml file.\n";
+                    foundError = true;
+                    break;
+                }
+                
+            }
+            //else if(line[ClosingAngularBracketIndex-1] == '?')//if true, it means it's end of prolog
+            //else if(!line.empty() && ClosingAngularBracketIndex==-1)
+            //{
+                // xml=St.Top();
+                // if(xml.tagText == "xml")//prolog will always contain "xml" as a tag text
+                // {
+                    // St.pop(xml);
+                    // cout<<"Popped: "; xml.printXML();
+                // }
+                // else
+                // {
+                //     cout<<"---- ERROR ---- \tno closing tag found but opening tag exists as follows;\n";
+                //     xml.printXML();
+                //     foundError = true;
+                //     break;
+                // }
+                
+
+            //     line = line.substr(ClosingAngularBracketIndex+1, line.size());
+            //     CurrentLineLength=line.length();
+
+            // }
+
+            //NOTE: Two dashes in the middle of a comment are not allowed
+            else if(line[OpeningAngularBracketIndex+1] == '!' && line[OpeningAngularBracketIndex+2] == '-' && line[OpeningAngularBracketIndex+3] == '-')//if true, it's start of a comment
+            {
+                line = line.substr(OpeningAngularBracketIndex+4, line.size());// <!-- these 4 charachters are deleted from string
+                CurrentLineLength=line.length();
+
+                xml.lineNumber=lineCounter;
+                xml.StartOrEnd=0;
+                xml.tagText="Comment";
+
+                St.push(xml);
+                cout<<"Pushed: "; xml.printXML();
+            }
+            else if(line[ClosingAngularBracketIndex-1] == '-' && line[ClosingAngularBracketIndex-2] == '-')//if true, it means it's end of a comment
+            {
+                xml=St.Top();
+                if(xml.tagText == "Comment")
+                {
+                    St.pop(xml);
+                    cout<<"Popped: "; xml.printXML();
+                }
+                else
+                {
+                    cout<<"---- ERROR ---- \tno closing tag found but opening tag exists as follows;\n";
+                    xml.printXML();
+                    foundError = true;
+                    break;
+                }
+                
+                line = line.substr(ClosingAngularBracketIndex+1, line.size());
+                CurrentLineLength=line.length();
+            }
+
+            
+            else if(  (line[OpeningAngularBracketIndex]=='<')  &&  ((line[OpeningAngularBracketIndex+1] >= 65 && line[OpeningAngularBracketIndex+1] <= 90) || (line[OpeningAngularBracketIndex+1] >=97 && line[OpeningAngularBracketIndex+1] <= 122))  &&  (line[ClosingAngularBracketIndex]=='>')  )//if true, it's start of a simple tag
+            {
+                xml.lineNumber=lineCounter;
+                xml.StartOrEnd=0;
+
+                string Tag;
+                int FirstSpaceAfterTag = line.find(' ');
+
+                if(FirstSpaceAfterTag != -1 && FirstSpaceAfterTag < ClosingAngularBracketIndex)
+                    Tag = line.substr(1, FirstSpaceAfterTag-1);
+                else
+                    Tag = line.substr(1, ClosingAngularBracketIndex-1);
+
+                xml.tagText=Tag;
+
+                St.push(xml);
+                cout<<"Pushed: "; xml.printXML();
+
+                line = line.substr(ClosingAngularBracketIndex+1, line.size());
+                CurrentLineLength=line.length();
+            }
+            else if(  (line[OpeningAngularBracketIndex]=='<')  &&  (line[OpeningAngularBracketIndex+1]=='/')  &&  ((line[OpeningAngularBracketIndex+2] >= 65 && line[OpeningAngularBracketIndex+2] <= 90) || (line[OpeningAngularBracketIndex+2] >=97 && line[OpeningAngularBracketIndex+2] <= 122))  )//if true, it's end of a simple tag
+            {
+                line = line.substr(OpeningAngularBracketIndex+2, line.size());
+                int TagLength = line.find('>');
+                string Tag = line.substr(0, TagLength);
+                xml = St.Top();
+
+                int x=xml.tagText.compare(Tag);
+                if(x==0)
+                {
+                    St.pop(xml);
+                    cout<<"Popped: "; xml.printXML();
+                }
+                else
+                {
+                    cout<<"---- ERROR ---- \tno closing tag found but opening tag exists as follows;\n";
+                    xml.printXML();
+                    foundError = true;
+                    break;
+                }
+
+                line = line.substr(TagLength+1, line.size());
+                CurrentLineLength=line.length();
+
+                
+            }
         }
-        else if(line[ClosingAngularBracket-1] == '?')//if true, it means it's end of prolog
-        {
-            St.pop(xml);
-            cout<<"Popped: "; xml.printXML();
-        }
 
-        //NOTE: Two dashes in the middle of a comment are not allowed
-        else if(line[OpeningAngularBracket+1] == '!' && line[OpeningAngularBracket+2] == '-' && line[OpeningAngularBracket+3] == '-')//if true, it's start of a comment
-        {
-            xml.lineNumber=lineCounter;
-            xml.StartOrEnd=0;
-            xml.tagText="Comment";
-
-            St.push(xml);
-            cout<<"Pushed: "; xml.printXML();
-        }
-        else if(line[ClosingAngularBracket-1] == '-' && line[ClosingAngularBracket-2] == '-')//if true, it means it's  end of a comment
-        {
-            St.pop(xml);
-            cout<<"Popped: "; xml.printXML();
-        }
-
-
-        else if(  (line[OpeningAngularBracket+1] >= 65 && line[OpeningAngularBracket+1] <= 90) || (line[OpeningAngularBracket+1] >=97 && line[OpeningAngularBracket+1] <= 102)  )//if true, it's start of a simple tag
-        {
-            xml.lineNumber=lineCounter;
-            xml.StartOrEnd=0;
-
-            line = line.substr(OpeningAngularBracket+1, line.size());
-            int FirstSpaceAfterTag = line.find(' ');
-
-            string Tag = line.substr(0, FirstSpaceAfterTag);
-            xml.tagText=Tag;
-
-            St.push(xml);
-            cout<<"Pushed: "; xml.printXML();
-        }
-        else if(  (line[ClosingAngularBracket-1] >= 65 && line[ClosingAngularBracket-1] <= 90) || (line[ClosingAngularBracket-1] >=97 && line[ClosingAngularBracket-1] <= 102)  )//if true, it's end of a simple tag
-        {
-            St.pop(xml);
-            cout<<"Popped: "; xml.printXML();
-        }
+        if(foundError)
+            break;
 
         lineCounter++;
     }
+
+    if(!foundError)
+        cout<<"No Error found in this xml file.\n";
+
+    fin.close();
 }
 
 int main()

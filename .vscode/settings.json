@@ -22,6 +22,7 @@
     "better-comments.multilineComments": true,
     "http.proxySupport": "off",
     "files.associations": {
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "iosfwd": "cpp"
     },
 }
