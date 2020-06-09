@@ -1,34 +1,21 @@
 #include "stackXML.h"
 
-tT Node<T>::Node()
-{
-    //this->next=new Node();
-}
+tT Node<T>::Node() {}
 
 tT Node<T>::Node(const T val)
 {
-    //this->next=new Node();
     this->data=val;
 }
 
-// tT Node<T>::~Node()
-// {
-    
-// }
-
 tT Stack<T>::Stack()
 {
-    //this->top=new Node<T>;
     top=nullptr;
 }
 
 tT bool Stack<T>::IsEmpty()
 {
     if(!top)
-    {
-        cout<<"Stack is empty\n";
         return true;
-    }
     return false;
 }
 
@@ -99,6 +86,7 @@ void checkXML(string filename)
     Stack<XMLData> St;
     int lineCounter = 1;
     bool foundError = false;
+    bool attributeError = false;
 
     ifstream fin;
     fin.open(filename);
@@ -107,15 +95,16 @@ void checkXML(string filename)
     {
         XMLData xml;
         string line;
-        getline(fin, line, '\n');//reads whole line so that line number can be tracked
 
+        getline(fin, line, '\n');//reads whole line so that line number can be tracked
         int CurrentLineLength=line.length();
+
         while( CurrentLineLength>0 )
         {
             int OpeningAngularBracketIndex = line.find('<');
             int ClosingAngularBracketIndex = line.find('>');
 
-            if(OpeningAngularBracketIndex == -1 && ClosingAngularBracketIndex == -1)
+            if(OpeningAngularBracketIndex == -1 && ClosingAngularBracketIndex == -1)//if true, it means the current line contain no tag
                 CurrentLineLength = 0;
 
             //NOTE: XML prolog is optional. If it exists, it must come first in the document.
@@ -156,31 +145,161 @@ void checkXML(string filename)
                 }
                 
             }
-            //else if(line[ClosingAngularBracketIndex-1] == '?')//if true, it means it's end of prolog
-            //else if(!line.empty() && ClosingAngularBracketIndex==-1)
-            //{
-                // xml=St.Top();
-                // if(xml.tagText == "xml")//prolog will always contain "xml" as a tag text
-                // {
-                    // St.pop(xml);
-                    // cout<<"Popped: "; xml.printXML();
-                // }
-                // else
-                // {
-                //     cout<<"---- ERROR ---- \tno closing tag found but opening tag exists as follows;\n";
-                //     xml.printXML();
-                //     foundError = true;
-                //     break;
-                // }
+            //check if there's a proper end of prolog
+            else if(  (OpeningAngularBracketIndex==-1 || OpeningAngularBracketIndex>ClosingAngularBracketIndex) && line[ClosingAngularBracketIndex-1]=='?' )
+            {
+                if(lineCounter==1)
+                {
+                    cout<<"---- ERROR ---- \tThere's no start of prolog but its end exists.\n";
+                    foundError = true;
+                    break;
+                }
+                else
+                {
+                    cout<<"---- ERROR ---- \tThere's no start of prolog but its end exists. It's at line "<<lineCounter<<" (prolog must be at line 1)\n";
+                    foundError = true;
+                    break;
+                }
+                
+            }
+
+            //check if it's end of a comment
+            else if(  (line[ClosingAngularBracketIndex-1] == '-') && (line[ClosingAngularBracketIndex-2] == '-') && (line.find("-->")==line.find("--"))  )
+            {
+                xml=St.Top();
+                if(xml.tagText == "Comment")
+                {
+                    St.pop(xml);
+                    //cout<<"Popped: "; xml.printXML();
+                }
+                else
+                {
+                    cout<<"---- ERROR ---- \tfound closing tag of Comment at line "<<lineCounter<<", but there's no starting tag for it.";
+                    foundError = true;
+                    break;
+                }
+                
+                line = line.substr(ClosingAngularBracketIndex+1, line.size());
+                CurrentLineLength=line.length();
+            }
+
+            //check if it's start of a simple tag with or without attribute.
+            else if( (line[OpeningAngularBracketIndex]=='<')  &&  ((line[OpeningAngularBracketIndex+1] >= 65 && line[OpeningAngularBracketIndex+1] <= 90) || (line[OpeningAngularBracketIndex+1] >=97 && line[OpeningAngularBracketIndex+1] <= 122))  /*&&  (OpeningAngularBracketIndex < ClosingAngularBracketIndex)*/  )
+            {
+                xml.lineNumber=lineCounter;
+                xml.StartOrEnd=0;
+
+                string Tag;
+                int FirstSpaceAfterTag = line.find(' ');
+
+                //check if there's an attribute
+                if(FirstSpaceAfterTag != -1 && (FirstSpaceAfterTag < ClosingAngularBracketIndex || ClosingAngularBracketIndex==-1))
+                {
+                    Tag = line.substr(1, FirstSpaceAfterTag-1);
+
+                    line = line.substr(FirstSpaceAfterTag+1, line.size());//delete tag name from current line
+
+                    int firstQuoteS = line.find("'");//find first single quote
+                    int firstQuoteD = line.find('"');//find first double quote
+
+                    //if first "double quote" exists and there's a charachter after that double quote (i.e., name of attribute)
+                    if(firstQuoteD<firstQuoteS && firstQuoteD!=-1 && ((line[firstQuoteD+1] >= 65 && line[firstQuoteD+1] <= 90) || (line[firstQuoteD+1] >=97 && line[firstQuoteD+1] <= 122)))
+                    {
+                        line=line.substr(firstQuoteD+1, line.size());//delete line from start upto first double quote(icluding)
+
+                        int secondQuoteD = line.find('"');//find second double quote
+                        ClosingAngularBracketIndex = line.find('>');//update index of '>'
+                        
+                        //checking if current tag is properly closed; both when there's only one tag or multiple tags in a single line.
+                        if(   (ClosingAngularBracketIndex==-1 || (secondQuoteD!=-1 && secondQuoteD<ClosingAngularBracketIndex)) && (  (line.find("\">")==-1) || (line.find("\">")!=-1 && secondQuoteD<line.find("\">"))  )   )
+                        {
+                            cout<<"---- ERROR ---- \tNo proper closing of tag: <"<<Tag<<"> at line "<<lineCounter;
+                            foundError = true;
+                            break;
+                        }
+                        //checking if current attribute is quoted; both when there's only one attribute or multiple attributes in a single line.
+                        else if(ClosingAngularBracketIndex!=-1 && (secondQuoteD>ClosingAngularBracketIndex || secondQuoteD==-1))
+                        {
+                            cout<<"---- ERROR ---- \tThe attribute is not properly quoted at line "<<lineCounter;
+                            attributeError = true;
+                            break;
+                        }
+                    }
+
+                    //if first 'single quote' exists and there's a charachter after that single quote (i.e., name of attribute)
+                    else if(firstQuoteS!=-1 && ((line[firstQuoteS+1] >= 65 && line[firstQuoteS+1] <= 90) || (line[firstQuoteS+1] >=97 && line[firstQuoteS+1] <= 122)))
+                    {
+                        line=line.substr(firstQuoteS+1, line.size());//delete line from start upto first single quote(icluding)
+
+                        int secondQuoteS = line.find("'");//find second 'single quote'
+                        ClosingAngularBracketIndex = line.find('>');//update index of '>'
+                        
+                        //checking if current tag is properly closed; both when there's only one tag or multiple tags in a single line.
+                        if(   (ClosingAngularBracketIndex==-1 || (secondQuoteS!=-1 && secondQuoteS<ClosingAngularBracketIndex)) && (  (line.find("'>")==-1) || (line.find("'>")!=-1 && secondQuoteS<line.find("'>"))  )   )
+                        {
+                            cout<<"---- ERROR ---- \tNo proper closing of tag: <"<<Tag<<"> at line "<<lineCounter;
+                            foundError = true;
+                            break;
+                        }
+                        //checking if current attribute is quoted; both when there's only one attribute or multiple attributes in a single line.
+                        else if(ClosingAngularBracketIndex!=-1 && (secondQuoteS>ClosingAngularBracketIndex || secondQuoteS==-1))
+                        {
+                            cout<<"---- ERROR ---- \tThe attribute is not properly quoted at line "<<lineCounter;
+                            attributeError = true;
+                            break;
+                        }
+                    }
+                }
+
+                else//if there's no attribute
+                    Tag = line.substr(1, ClosingAngularBracketIndex-1);
+
+                xml.tagText=Tag;
+
+                St.push(xml);
+                //cout<<"Pushed: "; xml.printXML();
+                
+                ClosingAngularBracketIndex=line.find('>');
+                line = line.substr( ClosingAngularBracketIndex+1, line.size());
+                CurrentLineLength=line.length();
+            }
+            //icheck if it's end of a simple tag with or without attribute.
+            else if(  (line[OpeningAngularBracketIndex]=='<')  &&  (line[OpeningAngularBracketIndex+1]=='/')  &&  ((line[OpeningAngularBracketIndex+2] >= 65 && line[OpeningAngularBracketIndex+2] <= 90) || (line[OpeningAngularBracketIndex+2] >=97 && line[OpeningAngularBracketIndex+2] <= 122))  )
+            {
+                line = line.substr(OpeningAngularBracketIndex+2, line.size());
+                int TagLength = line.find('>');
+                string Tag = line.substr(0, TagLength);
+
+                if(!St.IsEmpty())//check if there's a starting tag against incoming ending tag
+                    xml = St.Top();
+                else
+                {
+                    cout<<"---- ERROR ---- \tfound closing tag: </"<<Tag<<"> at line "<<lineCounter<<", but there's no starting tag for it.";
+                    foundError = true;
+                    break;
+                }
                 
 
-            //     line = line.substr(ClosingAngularBracketIndex+1, line.size());
-            //     CurrentLineLength=line.length();
+                int x=xml.tagText.compare(Tag);
+                if(x==0)
+                {
+                    St.pop(xml);
+                    //cout<<"Popped: "; xml.printXML();
+                }
+                else
+                {
+                    cout<<"---- ERROR ---- \tThere MUST be a closing tag: </"<<xml.tagText<<"> before encountered closing tag i.e., </"<<Tag<<"> at line "<<lineCounter;
+                    foundError = true;
+                    break;
+                }
 
-            // }
+                line = line.substr(TagLength+1, line.size());
+                CurrentLineLength=line.length();
+            }
 
-            //NOTE: Two dashes in the middle of a comment are not allowed
-            else if(line[OpeningAngularBracketIndex+1] == '!' && line[OpeningAngularBracketIndex+2] == '-' && line[OpeningAngularBracketIndex+3] == '-')//if true, it's start of a comment
+
+            //check if it's start of a comment
+            else if(line[OpeningAngularBracketIndex+1] == '!' && line[OpeningAngularBracketIndex+2] == '-' && line[OpeningAngularBracketIndex+3] == '-')
             {
                 line = line.substr(OpeningAngularBracketIndex+4, line.size());// <!-- these 4 charachters are deleted from string
                 CurrentLineLength=line.length();
@@ -190,85 +309,52 @@ void checkXML(string filename)
                 xml.tagText="Comment";
 
                 St.push(xml);
-                cout<<"Pushed: "; xml.printXML();
+                //cout<<"Pushed: "; xml.printXML();
             }
-            else if(line[ClosingAngularBracketIndex-1] == '-' && line[ClosingAngularBracketIndex-2] == '-')//if true, it means it's end of a comment
-            {
-                xml=St.Top();
-                if(xml.tagText == "Comment")
-                {
-                    St.pop(xml);
-                    cout<<"Popped: "; xml.printXML();
-                }
-                else
-                {
-                    cout<<"---- ERROR ---- \tno closing tag found but opening tag exists as follows;\n";
-                    xml.printXML();
-                    foundError = true;
-                    break;
-                }
-                
-                line = line.substr(ClosingAngularBracketIndex+1, line.size());
-                CurrentLineLength=line.length();
-            }
-
             
-            else if(  (line[OpeningAngularBracketIndex]=='<')  &&  ((line[OpeningAngularBracketIndex+1] >= 65 && line[OpeningAngularBracketIndex+1] <= 90) || (line[OpeningAngularBracketIndex+1] >=97 && line[OpeningAngularBracketIndex+1] <= 122))  &&  (line[ClosingAngularBracketIndex]=='>')  )//if true, it's start of a simple tag
+            //check if there are double dashes in the comment
+            else if( line.find("--") != line.find("-->") )
             {
-                xml.lineNumber=lineCounter;
-                xml.StartOrEnd=0;
-
-                string Tag;
-                int FirstSpaceAfterTag = line.find(' ');
-
-                if(FirstSpaceAfterTag != -1 && FirstSpaceAfterTag < ClosingAngularBracketIndex)
-                    Tag = line.substr(1, FirstSpaceAfterTag-1);
-                else
-                    Tag = line.substr(1, ClosingAngularBracketIndex-1);
-
-                xml.tagText=Tag;
-
-                St.push(xml);
-                cout<<"Pushed: "; xml.printXML();
-
-                line = line.substr(ClosingAngularBracketIndex+1, line.size());
-                CurrentLineLength=line.length();
-            }
-            else if(  (line[OpeningAngularBracketIndex]=='<')  &&  (line[OpeningAngularBracketIndex+1]=='/')  &&  ((line[OpeningAngularBracketIndex+2] >= 65 && line[OpeningAngularBracketIndex+2] <= 90) || (line[OpeningAngularBracketIndex+2] >=97 && line[OpeningAngularBracketIndex+2] <= 122))  )//if true, it's end of a simple tag
-            {
-                line = line.substr(OpeningAngularBracketIndex+2, line.size());
-                int TagLength = line.find('>');
-                string Tag = line.substr(0, TagLength);
-                xml = St.Top();
-
-                int x=xml.tagText.compare(Tag);
-                if(x==0)
+                if(OpeningAngularBracketIndex==-1 && ClosingAngularBracketIndex==-1)
                 {
-                    St.pop(xml);
-                    cout<<"Popped: "; xml.printXML();
+                    CurrentLineLength=0;
                 }
                 else
                 {
-                    cout<<"---- ERROR ---- \tno closing tag found but opening tag exists as follows;\n";
-                    xml.printXML();
+                    cout<<"---- ERROR ---- \tAt line "<<lineCounter<<", Two dashes in the middle of a comment are not allowed.";
                     foundError = true;
                     break;
                 }
-
-                line = line.substr(TagLength+1, line.size());
-                CurrentLineLength=line.length();
-
                 
             }
         }
 
-        if(foundError)
+        if(foundError || attributeError)
             break;
 
         lineCounter++;
     }
 
-    if(!foundError)
+    //show error if stack is not empty
+    if(!St.IsEmpty() && !attributeError && !foundError)
+    {
+        cout<<"---- ERROR ---- \tFound ";
+
+        if(St.Top().StartOrEnd==0)
+            cout<<"Starting";
+        else
+            cout<<"Ending";
+
+        cout<<" tag \""<<St.Top().tagText<<"\" at line "<<St.Top().lineNumber<<" but it has no ";
+
+        if(St.Top().StartOrEnd==0)
+            cout<<"Ending";
+        else
+            cout<<"Starting";
+
+        cout<<" tag\n";
+    }
+    else if(!foundError && !attributeError)
         cout<<"No Error found in this xml file.\n";
 
     fin.close();
@@ -276,23 +362,6 @@ void checkXML(string filename)
 
 int main()
 {
-    // Stack<int> s;
-    // cout<<s.IsEmpty();
-    // cout<<s.push(2);
-    // cout<<s.push(3);
-    // cout<<s.push(4);
-    // s.print();
-    // cout<<s.push(5);
-    // cout<<s.push(6);
-    // int g; cout<<s.pop(g)<<g<<endl;
-    // cout<<s.pop(g)<<"\t"<<g;
-    // g=s.Top();cout<<endl<<g;
-    // s.print();
-    // cout<<s.IsEmpty();
-
-
-    // Stack<XMLData> S1;
-    // XMLData f;
     checkXML("xml.txt");
     
     return 0;
