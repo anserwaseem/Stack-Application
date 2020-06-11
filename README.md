@@ -20,4 +20,4 @@ Your program should handle the following features of XML:
 1. xml prolog (xml header)
 2. xml tags (xml elements). The xml tags are case sensitive.
 3. xml attribute
-4. xml comments, start with <!-- and ends with -->
+4. xml comments
